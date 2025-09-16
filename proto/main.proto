@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package calculator;
+
+import "validate/validate.proto";
+import "google/api/annotations.proto";
+
+option go_package = "/proto/gen;mainpb";
+
+service Calculator {
+    // Simple addition over HTTP POST
+    rpc Add (AddRequest) returns (AddResponse) {
+        option (google.api.http) = {
+            post: "/v1/calculator/add"
+            body: "*"
+        };
+    }
+
+    // Fibonacci over HTTP GET with query param
+    rpc GenerateFibonacci (FibonacciRequest) returns (stream FibonacciResponse) {
+        option (google.api.http) = {
+            get: "/v1/calculator/fibonacci"
+        };
+    }
+
+    // Client-streaming doesn’t map cleanly to REST,
+    // usually exposed only via gRPC.
+    rpc SendNumbers (stream NumberRequest) returns (NumberResponse);
+
+    // Bi-di streaming also doesn’t map cleanly to REST.
+    rpc Chat (stream ChatMessage) returns (stream ChatMessage);
+}
+
+message AddRequest {
+    int32 a = 1 [(validate.rules).int32 = {gt: 0}];  // must be > 0
+    int32 b = 2 [(validate.rules).int32 = {gt: 0}];  // must be > 0
+}
+
+message AddResponse {
+    int32 sum = 1;
+}
+
+message FibonacciRequest {
+    int32 n = 1 [(validate.rules).int32 = {gte: 1, lte: 50}];
+}
+
+message FibonacciResponse {
+    int32 number = 1;
+}
+
+message NumberRequest {
+    int32 number = 1 [(validate.rules).int32 = {gt: 0}];
+}
+
+message NumberResponse {
+    int32 sum = 1;
+}
+
+message ChatMessage {
+    string message = 1 [(validate.rules).string = {min_len: 1}];
+}
