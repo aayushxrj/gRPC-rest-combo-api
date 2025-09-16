@@ -46,3 +46,8 @@ protoc \
 ```
 go get github.com/grpc-ecosystem/grpc-gateway/v2@latest
 ```
+
+
+```
+curl "http://localhost:8080/v1/calculator/fibonacci?n=10"
+```

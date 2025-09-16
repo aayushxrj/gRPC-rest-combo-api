@@ -1,21 +1,27 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"time"
 
 	mainpb "github.com/aayushxrj/gRPC-rest-combo-api/proto/gen"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
+	// "google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
+
+	// gw "github.com/aayushxrj/gRPC-rest-combo-api/proto/gen" // alias for gateway registration
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 )
 
 type server struct {
@@ -122,28 +128,62 @@ func (s *server) Chat(stream mainpb.Calculator_ChatServer) error {
 
 func main() {
 	port := ":50051"
-	cert := "cert.pem"
-	key := "key.pem"
+	// cert := "cert.pem"
+	// key := "key.pem"
 
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatal("Failed to listen:", err)
 	}
 
-	creds, err := credentials.NewServerTLSFromFile(cert, key)
-	if err != nil {
-		log.Fatal("Failed to load credentials:", err)
-	}
-	grpcServer := grpc.NewServer(grpc.Creds(creds))
+	// creds, err := credentials.NewServerTLSFromFile(cert, key)
+	// if err != nil {
+	// 	log.Fatal("Failed to load credentials:", err)
+	// }
+	// grpcServer := grpc.NewServer(grpc.Creds(creds))
+	grpcServer := grpc.NewServer()
 
 	mainpb.RegisterCalculatorServer(grpcServer, &server{})
 
 	// enable reflection
 	reflection.Register(grpcServer)
 
-	log.Printf("Server is running on the port %s", port)
-	err = grpcServer.Serve(lis)
-	if err != nil {
-		log.Fatal("Failed to serve:", err)
-	}
+	// log.Printf("Server is running on the port %s", port)
+	// err = grpcServer.Serve(lis)
+	// if err != nil {
+	// 	log.Fatal("Failed to serve:", err)
+	// }
+
+	// Start gRPC server in goroutine
+	go func() {
+		log.Printf("gRPC server running on %s", port)
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatal("Failed to serve gRPC:", err)
+		}
+	}()
+
+	// Start REST gateway
+	restPort := ":8080"
+	go func() {
+		ctx := context.Background()
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		mux := runtime.NewServeMux()
+		// opts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, ""))}
+		opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+
+		// Register gateway
+		if err := mainpb.RegisterCalculatorHandlerFromEndpoint(ctx, mux, "localhost"+port, opts); err != nil {
+			log.Fatal("Failed to register gateway:", err)
+		}
+
+		log.Printf("REST gateway running on %s", restPort)
+		if err := http.ListenAndServe(restPort, mux); err != nil {
+			log.Fatal("Failed to serve REST gateway:", err)
+		}
+	}()
+
+	// Block forever
+	select {}
 }
