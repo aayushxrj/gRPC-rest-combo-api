@@ -28,6 +28,23 @@ type server struct {
 	mainpb.UnimplementedCalculatorServer
 }
 
+func (s *server) Add(ctx context.Context, req *mainpb.AddRequest) (*mainpb.AddResponse, error) {
+	// Validate the request (protoc-gen-validate will generate a Validate() method)
+	if err := req.Validate(); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "validation failed: %v", err)
+	}
+
+	a := req.GetA()
+	b := req.GetB()
+
+	sum := a + b
+	log.Printf("Add called with a=%d, b=%d, sum=%d", a, b, sum)
+
+	return &mainpb.AddResponse{
+		Sum: sum,
+	}, nil
+}
+
 func (s *server) GenerateFibonacci(req *mainpb.FibonacciRequest, stream mainpb.Calculator_GenerateFibonacciServer) error {
 	// Validate request
 	if err := req.Validate(); err != nil {
